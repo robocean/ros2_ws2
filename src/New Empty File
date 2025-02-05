@@ -1,0 +1,240 @@
+
+나는 먼저 cat get_coordinates 내에 있는 위경도  좌표값들을 이 sim파이썬파일에 불러올거야. 지금 상황에서 들어있는 좌표값들을 예로 들면 {
+    "coordinates": [
+        {
+            "lat": 35.07473455368471,
+            "lng": 129.08579758678363
+        },
+        {
+            "lat": 35.07480516482157,
+            "lng": 129.0857527966375
+        },
+        {
+            "lat": 35.07489519502636,
+            "lng": 129.08575782901946
+        },
+        {
+            "lat": 35.07499812413921,
+            "lng": 129.0857988157992
+        },
+        {
+            "lat": 35.07507834537551,
+            "lng": 129.08585018643797
+        },
+        {
+            "lat": 35.075160629986456,
+            "lng": 129.0859125715831
+        }
+    ] 
+이 좌표거든? 각각 위도, 경도에 관한 좌표값들인데,   위에서 아래로 총 6개잖아? 제일 위에, 즉 제일 처음 좌표가 로봇의 시작 위치 좌표인거야, 알겠지? 나는 이 좌표값들을 받아서 시뮬레이션을 실행하기 위한 배경설정을 진행하는거야.
+ 그리고, 아두이노에서 라즈베리파이로 neo7m과 mpu9250을  동시에 사용하여 출력된 현재 gps값과, yaw값(즉, 방위각)을 string형식으로 가져올거야. 그렇다면 이것들은 로봇의 위치와 방향을 알 수 있는 역할 이 되겠지?
+ 이런 상황에서, 로봇은 내가 플롯한 get_coordintates 좌표들을 향해 차례로 경로추종하기 위한 절차를 들어가도록 할거야. 내가 지금 준 coorditaes들을 예로 들면 "lat": 35.07473455368471,"lng": 129.08579758678363가 로봇의 현재 위치이고,  로봇이 가야되는 위치 좌표는  "lat": 35.07480516482157,
+ "lng": 129.0857527966375가 되는거야. 그리고 그 다음위치로는 lat": 35.07489519502636, "lng": 129.08575782901946 이런식이 되는거지, 이렇게 계속 좌표를 향해 가다가 마지막 좌표인  "lat": 35.075160629986456,
+ "lng": 129.0859125715831에 도착을 하게 되면 시뮬레이션이 종료가 되는 형태인거야. 무슨말인지 알겠지?  그러기 위해서는 처음에 로봇의 위치는 알것이고 로봇의 방향에 대해서 정의를 하자면, 로봇의 방향은 항상 로봇이 다음 경로로 가야되는 두번쨰 좌표가 되게 할거야. 그러니까 시뮬레이션 시작할 때 로봇의 방향은 
+항상 다음에 로봇이 가야되는 좌표의 방향을 항헤 정지되어있는거지. 그리고 로봇이 내가 설정한 좌표에 도달할 때마다 지점에 도착했다고 하는 커멘드가 나와야 될거야. 그리고 로봇이 지점에 도착을하면 1초 정지되게 만들어줘.  로봇이 도착했음을 알 수 있게 하는 방법은  목표좌표와 로봇의 현재 위치 사이의 거리가 반경 3m 안에(Re가 이 거리라고 가정) 만
+도달하게 된다면 도착했다는 것을 인식할 수 있게 할게. 
+
+로봇은 노드가 시작되면 다음좌표를 향해 전진을 할거야.  처음에 로봇이 시작할 때는 다음좌표를 향해 바라보고있다는 전제 조건이 있었잖아? 그런데 어느 한 좌표에 도달해서 다음 좌표로 가게 될 때 로봇이 그 좌표로 가게 되려면 직선이 아닌 이상, 회전을 진행하고, 전진 해야될 거 아니야? 이 때 theta가 로봇의 헤딩방향, 
+theta_goal이  좌표 사이의 path와   동쪽, 즉 x축 사이의 선으로 반시계 회전된 회전각 이라고 할 때,(theta도 마찬가지로 반시계 회전된 회전각) ,theta_error= theta-theta_goal이라고 할 수 있는데, 이 theta_error가 0으로 수렴이 되게 처음에 회전을 하는거야. 회전을 하면 결국에, 로봇이 다시 그 다음좌표를 향해
+바라보겠지? 그리고 전진하면 되는거지.  이 조건을 실행하려면 실제 위경도에 대한 좌표값을 xy로 변환하는 부분이 있어야 될거야. 그렇지만 로봇자체에 있는 yaw값의 정확도 한계로 인해서 아마 좌표사이의 path에 도달하지 못하고 엉뚱한 곳으로 갈 수 있을 수도 있을텐데, 이럴 떄, 좌표 사이의 경로인 path를 하나의 선이라고 가정하고, 
+로봇의 위치와 좌표사이의 직선을 delta_y를 정의해서 이 delta_y가 1m()가 넘어간다면 path로 향할 수 있게 양쪽 모터의 회전 수를 조절하는거지. 예를들어 path가 있는데, xy축을 기준으로 로봇의 위치가 path보다 위에 있는 상태에서 는 아래로 가기 위해 왼쪽 모터출력을 70, 오른쪽 모터 출력을 10으로 주어 오른쪽으로 회전하도록
+만들거고, 로봇의 위치가 path보다 아래에 있는 상태에서는 왼쪽 모터의 출력을 10, 오른쪽 모터의 출력을 70으로 주어 왼쪽으로 회전되게끔 만드는거야. 그러니까 로봇의 gps값과 방위각이  계속 업데이트 될 거 아니야? 그럴데 delta_y도 계속 업데이트가 되야겠지?  그리고 모든 각도는 x, 동쪽선을 기점으로 y 북쪽 선을 향해
+반시계 회전하면서 증가되는 방향으로 회전각을 정의할거야. 모터 컨트롤에 관한 파이썬 코드같은 경우는. 
+import rclpy
+from rclpy.node import Node
+from dynamixel_sdk import PortHandler, PacketHandler, COMM_SUCCESS
+import termios
+import sys
+import tty
+import time
+from threading import Thread, Event
+
+# 제어 테이블 주소
+ADDR_TORQUE_ENABLE = 64
+ADDR_OPERATING_MODE = 11
+ADDR_GOAL_VELOCITY = 104
+
+# 프로토콜 버전
+PROTOCOL_VERSION = 2.0
+BAUDRATE = 57600
+
+# 포트 이름
+DEVICENAME_1 = '/dev/left_wheel'   # 왼쪽 바퀴 포트
+DEVICENAME_2 = '/dev/right_wheel'  # 오른쪽 바퀴 포트
+
+# 모터 ID
+DXL_ID_1 = 1
+DXL_ID_2 = 2
+
+# 속도 설정
+LEFT_WHEEL_FORWARD = 1023
+RIGHT_WHEEL_FORWARD = -1023
+LEFT_WHEEL_REVERSE = -1023
+RIGHT_WHEEL_REVERSE = 1023
+
+# 회전 속도 설정
+LEFT_WHEEL_RIGHT_TURN = int(1023 * 0.7)   # 오른쪽 회전 시 왼쪽 모터 출력: 70%
+RIGHT_WHEEL_RIGHT_TURN = int(-1023 * 0.1)  # 오른쪽 회전 시 오른쪽 모터 출력: 10%
+
+LEFT_WHEEL_LEFT_TURN = int(1023 * 0.1)    # 왼쪽 회전 시 왼쪽 모터 출력: 10%
+RIGHT_WHEEL_LEFT_TURN = int(-1023 * 0.7)   # 왼쪽 회전 시 오른쪽 모터 출력: 70%
+
+INITIAL_RATIO = 0.2  # 20% 초기 속도
+INCREMENT_STEP = 0.1  # 10%씩 증가
+INCREMENT_DELAY = 0.5  # 0.5초 간격으로 증가
+MAX_TIME = 5  # 5초 동안 속도 증가
+
+# 모터 초기화
+portHandler_1 = PortHandler(DEVICENAME_1)
+portHandler_2 = PortHandler(DEVICENAME_2)
+packetHandler = PacketHandler(PROTOCOL_VERSION)
+
+
+def initialize_motor(port_handler, motor_id, logger):
+    """모터 초기화"""
+    dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(port_handler, motor_id, ADDR_TORQUE_ENABLE, 0)
+    if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
+        logger.error(f"모터 {motor_id} 토크 비활성화 실패: {packetHandler.getTxRxResult(dxl_comm_result)}, {packetHandler.getRxPacketError(dxl_error)}")
+
+    dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(port_handler, motor_id, ADDR_OPERATING_MODE, 1)
+    if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
+        logger.error(f"모터 {motor_id} 속도 제어 모드 설정 실패: {packetHandler.getTxRxResult(dxl_comm_result)}, {packetHandler.getRxPacketError(dxl_error)}")
+
+    dxl_comm_result, dxl_error = packetHandler.write1ByteTxRx(port_handler, motor_id, ADDR_TORQUE_ENABLE, 1)
+    if dxl_comm_result != COMM_SUCCESS or dxl_error != 0:
+        logger.error(f"모터 {motor_id} 토크 활성화 실패: {packetHandler.getTxRxResult(dxl_comm_result)}, {packetHandler.getRxPacketError(dxl_error)}")
+    else:
+        logger.info(f"모터 {motor_id} 초기화 완료")
+
+
+class MotorControlNode(Node):
+    def __init__(self):
+        super().__init__('motor_control_node')
+        self.get_logger().info("모터 제어 노드가 시작되었습니다. 키보드 입력을 기다립니다...")
+
+        if not portHandler_1.openPort():
+            self.get_logger().error("왼쪽 바퀴 포트를 열지 못했습니다.")
+        if not portHandler_2.openPort():
+            self.get_logger().error("오른쪽 바퀴 포트를 열지 못했습니다.")
+
+        portHandler_1.setBaudRate(BAUDRATE)
+        portHandler_2.setBaudRate(BAUDRATE)
+
+        initialize_motor(portHandler_1, DXL_ID_1, self.get_logger())
+        initialize_motor(portHandler_2, DXL_ID_2, self.get_logger())
+
+        self.stop_event = Event()
+        self.speed_thread = None
+
+    def run(self):
+        """키보드 입력에 따라 모터를 제어"""
+        try:
+            while rclpy.ok():
+                key = self.get_key()
+                if key == 'w':
+                    self.start_speed_control(LEFT_WHEEL_FORWARD, RIGHT_WHEEL_FORWARD)
+                elif key == 's':
+                    self.start_speed_control(LEFT_WHEEL_REVERSE, RIGHT_WHEEL_REVERSE)
+                elif key == 'b':
+                    self.stop_motors()
+                elif key == 'a':
+                    self.stop_speed_control()
+                    self.turn_left()
+                elif key == 'd':
+                    self.stop_speed_control()
+                    self.turn_right()
+                elif key == 'q':
+                    self.get_logger().info("종료 키 입력, 프로그램을 종료합니다.")
+                    break
+        except KeyboardInterrupt:
+            self.get_logger().info("키보드 인터럽트로 종료됩니다.")
+        finally:
+            self.destroy_node()
+
+    def start_speed_control(self, left_target_velocity, right_target_velocity):
+        """속도를 점진적으로 증가시키며 전진/후진"""
+        self.stop_speed_control()
+        self.stop_event.clear()
+        self.speed_thread = Thread(
+            target=self._gradual_speed_increase,
+            args=(left_target_velocity, right_target_velocity)
+        )
+        self.speed_thread.start()
+
+    def _gradual_speed_increase(self, left_target_velocity, right_target_velocity):
+        current_ratio = INITIAL_RATIO
+        elapsed_time = 0
+        while elapsed_time < MAX_TIME and not self.stop_event.is_set():
+            left_velocity = int(left_target_velocity * current_ratio)
+            right_velocity = int(right_target_velocity * current_ratio)
+            packetHandler.write4ByteTxRx(portHandler_1, DXL_ID_1, ADDR_GOAL_VELOCITY, left_velocity)
+            packetHandler.write4ByteTxRx(portHandler_2, DXL_ID_2, ADDR_GOAL_VELOCITY, right_velocity)
+            self.get_logger().info(f"왼쪽 모터 속도: {left_velocity}, 오른쪽 모터 속도: {right_velocity}")
+            time.sleep(INCREMENT_DELAY)
+            current_ratio += INCREMENT_STEP
+            elapsed_time += INCREMENT_DELAY
+
+        if not self.stop_event.is_set():
+            packetHandler.write4ByteTxRx(portHandler_1, DXL_ID_1, ADDR_GOAL_VELOCITY, left_target_velocity)
+            packetHandler.write4ByteTxRx(portHandler_2, DXL_ID_2, ADDR_GOAL_VELOCITY, right_target_velocity)
+            self.get_logger().info("최대 속도에 도달했습니다.")
+
+    def stop_speed_control(self):
+        """속도 점진적 증가 중단"""
+        if self.speed_thread and self.speed_thread.is_alive():
+            self.stop_event.set()
+            self.speed_thread.join()
+
+    def stop_motors(self):
+        self.stop_speed_control()
+        packetHandler.write4ByteTxRx(portHandler_1, DXL_ID_1, ADDR_GOAL_VELOCITY, 0)
+        packetHandler.write4ByteTxRx(portHandler_2, DXL_ID_2, ADDR_GOAL_VELOCITY, 0)
+        self.get_logger().info("모터가 정지합니다.")
+
+    def turn_left(self):
+        packetHandler.write4ByteTxRx(portHandler_1, DXL_ID_1, ADDR_GOAL_VELOCITY, LEFT_WHEEL_LEFT_TURN)
+        packetHandler.write4ByteTxRx(portHandler_2, DXL_ID_2, ADDR_GOAL_VELOCITY, RIGHT_WHEEL_LEFT_TURN)
+        self.get_logger().info("모터가 왼쪽으로 회전합니다.")
+
+    def turn_right(self):
+        packetHandler.write4ByteTxRx(portHandler_1, DXL_ID_1, ADDR_GOAL_VELOCITY, LEFT_WHEEL_RIGHT_TURN)
+        packetHandler.write4ByteTxRx(portHandler_2, DXL_ID_2, ADDR_GOAL_VELOCITY, RIGHT_WHEEL_RIGHT_TURN)
+        self.get_logger().info("모터가 오른쪽으로 회전합니다.")
+
+    def get_key(self):
+        """키보드 입력을 비차단적으로 읽어옵니다."""
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(fd)
+            return sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
+    def destroy_node(self):
+        self.stop_speed_control()
+        portHandler_1.closePort()
+        portHandler_2.closePort()
+        self.get_logger().info("포트가 닫혔습니다.")
+        super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = MotorControlNode()
+    node.run()
+    rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+이 부분을 활용하면 될 거같아, 모터 id나 연결된 포트, 모터의 전진 후진 회전, 에관한 모터의 출력값들이 정의되어있거든. 자 이런 시뮬레이션이 진행이 되도록 리스너 토커 파일의 형식으로 만들어 줄래? 토커로는 et_coordinates 내에 있는 위경도  좌표값을 불러와서 환경을 구축하고, 좌표사이의 path라고 생각해서 
+이 delta_y도 선언한 다음,   xy로 변환해서 
+(wgs84=geocrs(4326)  -> tm_east= projcrs(5186) 위경도 ->tm좌표 변환) 모터의 회전값들을 계산하기 편하게 만든다음, 아두이노에서 라즈베리파일로 넘어오는 방위각(yaw)값과 gps,그리고 계산된 delta_y를 이용해서 리스너패키지로 넘어가게 된다면, 그 다음에 리스너패키지에서 좌표값에 따른 모터 컨트롤을 통해
+시뮬레이션 진행하게끔 만들어 줄 수 있을까?
+
+
+
+
+
+
